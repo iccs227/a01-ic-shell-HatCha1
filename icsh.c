@@ -6,6 +6,7 @@
 #include "stdio.h"
 #include "string.h"
 #include "stdlib.h"
+#include "stdbool.h"
 
 #define MAX_CMD_BUFFER 255
 
@@ -14,15 +15,17 @@ void allCommands(char* buffer);
 void cmdEcho(char* buffer);
 void cmdBang();
 void cmdExit(char* buffer);
-void allCommandsForFile(char* buffer);
 
 char prevBuffer[255];
+bool script = false;
 
 int main(int argc, char* argv[]) {
     char buffer[MAX_CMD_BUFFER];
 
     if (argc > 1){
+        script = true;
         FILE* file = fopen(argv[1], "r");
+
         if (file == NULL){
             printf("No such file %s\n", argv[1]);
             return 0;
@@ -31,7 +34,7 @@ int main(int argc, char* argv[]) {
         while (fgets(buffer, sizeof(buffer), file)) {
 
             buffer[strcspn(buffer, "\n")] = '\0';
-            allCommandsForFile(buffer);
+            allCommands(buffer);
         }
 
         fclose(file);
@@ -85,7 +88,9 @@ void allCommands(char* buffer){
         free(command);
         cmdExit(buffer);
     }
-
+    else if(strcmp(command, "##") == 0 && script){ //Cmd: exit ..
+        return;
+    }
     else{
         printf("bad command\n"); //Cmd: bad command
     }
@@ -107,7 +112,9 @@ void cmdBang(){
     if (strlen(prevBuffer) == 0){
         return;
     }
-    printf("%s\n", prevBuffer);
+    if (!script){
+        printf("%s\n", prevBuffer);
+    }
     allCommands(prevBuffer);
 }
 
@@ -121,38 +128,4 @@ void cmdExit(char* buffer){
     code = code & 0xFF;
     printf("bye\n");
     exit(code);
-}
-
-void allCommandsForFile(char* buffer){
-
-    char* command = firstWord(buffer); //Getting the command line
-
-    if(strlen(command) == 0){ //If type nothing
-        return;
-    }
-
-    if(strcmp(command, "echo") == 0){ //Cmd: echo ...
-        strcpy(prevBuffer, buffer);
-        cmdEcho(buffer);
-    }
-
-    else if(strcmp(command, "!!") == 0){ //Cmd: !!
-        if (strlen(prevBuffer) == 0){
-            return;
-        }
-        allCommandsForFile(prevBuffer);
-    }
-
-    else if(strcmp(command, "exit") == 0){ //Cmd: exit ..
-        free(command);
-        cmdExit(buffer);
-    }
-    else if(strcmp(command, "##") == 0){ //Cmd: exit ..
-        return;
-    }
-    else{
-        printf("bad command\n"); //Cmd: bad command
-    }
-
-    free(command);
 }
