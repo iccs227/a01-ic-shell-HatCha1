@@ -7,6 +7,9 @@
 #include "string.h"
 #include "stdlib.h"
 #include "stdbool.h"
+#include "unistd.h"
+#include "sys/types.h"
+#include "sys/wait.h"   
 
 #define MAX_CMD_BUFFER 255
 
@@ -15,6 +18,7 @@ void allCommands(char* buffer);
 void cmdEcho(char* buffer);
 void cmdBang();
 void cmdExit(char* buffer);
+void runExternal(char* buffer);
 
 char prevBuffer[255];
 bool script = false;
@@ -41,6 +45,7 @@ int main(int argc, char* argv[]) {
         return 0;
     }
     printf("Starting IC shell\n");
+
     while (1) {
         printf("icsh $ ");
         fgets(buffer, 255, stdin);
@@ -88,11 +93,11 @@ void allCommands(char* buffer){
         free(command);
         cmdExit(buffer);
     }
-    else if(strcmp(command, "##") == 0 && script){ //Cmd: exit ..
+    else if(strcmp(command, "##") == 0 && script){
         return;
     }
     else{
-        printf("bad command\n"); //Cmd: bad command
+        runExternal(buffer);
     }
 
     free(command);
@@ -128,4 +133,32 @@ void cmdExit(char* buffer){
     code = code & 0xFF;
     printf("bye\n");
     exit(code);
+}
+
+void runExternal(char* buffer) {
+
+    char* argv[64];
+    int argc = 0;
+
+    char* token = strtok(buffer, " ");
+    while (token != NULL && argc < 63) {
+        argv[argc++] = token;
+        token = strtok(NULL, " ");
+    }
+    argv[argc] = NULL; // Null-terminate
+
+    pid_t pid = fork();
+
+    if (pid == 0) { //Child
+
+        execvp(argv[0], argv);
+    }
+    else if (pid > 0) { //Parent
+
+        wait(NULL);
+    }
+    else { //Error
+        perror ("Fork failed");
+        exit(0);
+    }
 }
