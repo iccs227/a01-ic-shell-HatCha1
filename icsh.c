@@ -11,6 +11,7 @@
 #include "sys/types.h"
 #include "sys/wait.h"   
 #include "signal.h"
+#include <fcntl.h>
 
 #define MAX_CMD_BUFFER 255
 
@@ -21,6 +22,7 @@ void cmdBang();
 void cmdExit(char* buffer);
 void runExternal(char* buffer);
 void ignore(int signum);
+void bufferToArg(char* buffer, char** argv, char** input, char** output);
 
 char prevBuffer[255];
 bool script = false;
@@ -151,14 +153,10 @@ void cmdExit(char* buffer){
 void runExternal(char* buffer) {
 
     char* argv[64];
-    int argc = 0;
 
-    char* token = strtok(buffer, " ");
-    while (token != NULL && argc < 63) {
-        argv[argc++] = token;
-        token = strtok(NULL, " ");
-    }
-    argv[argc] = NULL; // Null-terminate
+    char* in = NULL;
+    char* out = NULL;
+    bufferToArg(buffer, argv, &in, &out);
 
     pid_t pid;
     if ((pid=fork()) < 0){ //Error
@@ -167,6 +165,17 @@ void runExternal(char* buffer) {
         return;
     }
     if (!pid) { //Child
+        if (in != NULL){
+            int fd = open(in, O_RDONLY);
+            if (fd < 0){
+                perror("No Such File");
+            }
+            dup2(fd, 0);
+        }
+        if (out != NULL){
+            int fd = open(out, O_TRUNC | O_CREAT | O_WRONLY, 0666);
+            dup2(fd, 1);
+        }
         execvp(argv[0], argv);
         perror("");
         exit(1);
@@ -190,4 +199,26 @@ void runExternal(char* buffer) {
 void ignore(int signum){
     printf("\n");
     fflush(stdout);
+}
+
+void bufferToArg(char* buffer, char** argv, char** input, char** output){
+    int argc = 0;
+
+    char* token = strtok(buffer, " ");
+    while (token != NULL && argc < 63) {
+        if (strcmp(token, "<") == 0){
+            token = strtok(NULL, " ");
+            *input = token;
+        }
+        else if (strcmp(token, ">") == 0){
+            token = strtok(NULL, " ");
+            *output = token;
+        }
+        else {
+            argv[argc++] = token;
+        }
+        token = strtok(NULL, " ");
+    }
+    argv[argc] = NULL; // Null-terminate
+    return;
 }

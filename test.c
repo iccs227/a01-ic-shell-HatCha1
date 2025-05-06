@@ -1,27 +1,44 @@
 #include <stdio.h>
-#include<sys/types.h>
-#include<unistd.h>
-#include<stdlib.h>
-#include<sys/wait.h>
-#include<signal.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <fcntl.h>
 
-void handler(int Sig){}
+   int main(int argc, char *argv[])
 
-int main()
-{
-    sigset_t sigint, oldmask; sigemptyset(&sigint); sigaddset(&sigint, SIGINT);
-    sigprocmask(SIG_BLOCK, &sigint, &oldmask);
+   {
+     int in;
+     int out;
+     size_t got;
 
-    pid_t c=fork();
-    if(0>c) return perror(0),1;
-    if (c==0){
-        signal(SIGINT, handler);
-        sigdelset(&oldmask,SIGINT); /*in (the unlikely) case the process started with SIGINT blocked*/
-        sigsuspend(&oldmask);
-        printf("signal was given\n");
-        exit(0);
-    }
-    kill(c,SIGINT);
-    wait(0);
-    return 0; 
-}
+     char buffer[1024];
+
+     in = open (argv[1], O_RDONLY);
+     out = open (argv[2], O_TRUNC | O_CREAT | O_WRONLY, 0666);
+
+
+     if (in <= 0)
+     {
+       fprintf (stderr, "Couldn't open a file\n");
+       exit (errno);
+     }
+
+     if (out <= 0){
+        fopen(argv[2], "a");
+        out = open (argv[2], O_TRUNC | O_CREAT | O_WRONLY, 0666);
+     }
+
+     dup2 (in, 0);
+     dup2 (out, 1);
+     
+     close (in);
+     close (out);
+
+     while (1)
+     {
+       got = fread (buffer, 1, 1024, stdin);  
+       if (got <=0) break;
+       fwrite (buffer, got, 1, stdout);
+     }
+   }
