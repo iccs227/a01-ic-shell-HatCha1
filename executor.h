@@ -4,6 +4,6 @@
 #include "job.h"
 #include "parser.h"
 
-void runExternal(char* buffer);
+void runExternal(char* buffer, char* argv[], int argc, char* in, char* out);
 
 #endif

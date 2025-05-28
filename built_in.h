@@ -2,9 +2,11 @@
 #define BUILT_IN_H
 
 #include "globals.h"
+#include "command.h"
+#include "parser.h"
 
-void cmdEcho(char* buffer);
-void cmdBang();
-void cmdExit(char* buffer);
+void cmdEcho(char* argv[]);
+void cmdBang(char* buffer, char* argv[]);
+void cmdExit(char* argv[], int argc);
 
 #endif

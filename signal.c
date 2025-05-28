@@ -1,10 +1,17 @@
 #include "signal.h"
 
+/**
+ * @name sig_done
+ * @brief Signal handler when a child process is finish.
+ * @param signum Signal identifier
+ * @returns void, only print out the finish jobID  
+ */
+
 void sig_done(int signum){
     pid_t pid;
     int status;
 
-    while((pid = waitpid(-1, &status, WNOHANG)) > 0) { // -1 == every child, waitpid > 0 == finish
+    while((pid = waitpid(-1, &status, WNOHANG)) > 0) { // Check if any child(-1) is finish(> 0)
         for (int i = 0; i < jobCount; i++){
             if (jobs[i].pid == pid){
                 if (WIFEXITED(status)) {
@@ -13,10 +20,8 @@ void sig_done(int signum){
                     printf("\n[%d]+ Done                    %s\n", jobs[i].id, jobs[i].command);
                     printf("icsh $ ");
                     fflush(stdout);
-                    for (int j = i; j < jobCount - 1; j++) { // Shifting
-                        jobs[j] = jobs[j + 1];
-                    }
-                    jobCount--;
+                    
+                    removeJob(i);
                 }
                 break;
             }

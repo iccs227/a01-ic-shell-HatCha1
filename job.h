@@ -17,9 +17,9 @@ extern int nextJobId;
 extern pid_t shell_pgid;
 
 void cmdJobs();
-void cmdFg(char* buffer);
-void cmdBg(char* buffer);
+void cmdFg(char* buffer, int argc);
+void cmdBg(char* buffer, int argc);
 Job createJob(char* command, pid_t pid);
-
+void removeJob(int index);
 
 #endif

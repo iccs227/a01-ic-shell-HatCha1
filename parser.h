@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
-void bufferToArg(char* buffer, char** argv, char** input, char** output);
-bool checkAmpersand(char** buffer);
+int bufferToArg(char* buffer, char** argv, char** input, char** output);
+bool checkAmpersand(char** argv, int argc);
 
 #endif

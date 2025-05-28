@@ -1,67 +1,82 @@
 #include "command.h"
+/**
+ * @name allCommands
+ * @brief Function to run necessary commands in this shell 
+ * @param buffer The orginal user input
+ * @returns void, only run other commands
+ */
+void allCommands(char* buffer){
+    // Initialize variables for future uses
+    char* argv[64];
+    char copyBuffer[MAX_CMD_BUFFER];
+    char* in = NULL;
+    char* out = NULL;
 
-char* firstWord(char* buffer){ //https://stackoverflow.com/questions/42605304/how-do-i-split-a-string-at-the-first-space-and-consign-the-strings-to-different
-    char* startOfSecond = strchr(buffer, ' '); // " world";
-    size_t lengthOfFirst;
+    int saved_stdout = dup(1); // Save output direction
+    int saved_stderr = dup(2); // Save error direction
+    int fd = -1;
 
-    if (startOfSecond != NULL) {
-        lengthOfFirst = startOfSecond - buffer;
-    } else {
-        lengthOfFirst = strlen(buffer);
+    strncpy(copyBuffer, buffer, MAX_CMD_BUFFER);
+    int argc = bufferToArg(copyBuffer, argv, &in, &out); 
+
+    // Now, argv, argc, in, and out are filled with values
+
+    char* command = argv[0]; // Getting command
+
+    if (out != NULL){ // If > is in the buffer, redirect output/error to this file
+        fd = open(out, O_TRUNC | O_CREAT | O_WRONLY, 0666);
+        dup2(fd, 1);
+        dup2(fd, 2);
     }
 
-    char* command = (char*)malloc((lengthOfFirst + 1) * sizeof(char));
-    strncpy(command, buffer, lengthOfFirst);
-    command[lengthOfFirst] = '\0';
-    return command;
-}
-
-void allCommands(char* buffer){
-
-    char* command = firstWord(buffer); //Getting the command line
-
-    if(strlen(command) == 0){ //If type nothing
+    if(command == NULL){ //If type nothing
         return;
     }
-    if (strcmp(buffer, "echo $?") == 0){
+    if (strcmp(buffer, "echo $?") == 0){ // For getting exit code
         printf("Exit Code: %d\n", prevExitCode);
     }
     else if(strcmp(command, "echo") == 0){ //Cmd: echo ...
-        strcpy(prevBuffer, buffer);
-        cmdEcho(buffer);
+        cmdEcho(argv);
         prevExitCode = 0;
     }
 
     else if(strcmp(command, "!!") == 0){ //Cmd: !!
-        cmdBang();
+        cmdBang(prevBuffer, argv);
         prevExitCode = 0;
     }
 
     else if(strcmp(command, "exit") == 0){ //Cmd: exit ..
-        free(command);
-        cmdExit(buffer);
+        cmdExit(argv, argc);
         prevExitCode = 0;
     }
-    else if(strcmp(command, "##") == 0 && script){
+    else if(strcmp(command, "##") == 0 && script){ // In script mode, if ## is shown, we do not want to include them as a command line
         return;
         prevExitCode = 0;
     }
-    else if (strcmp(command, "jobs") == 0 ){
+    else if (strcmp(command, "jobs") == 0 ){ //Cmd: jobs
         cmdJobs();
         prevExitCode = 0;
     }
-    else if (strcmp(command, "fg") == 0){
-        cmdFg(buffer);
+    else if (strcmp(command, "fg") == 0){ //Cmd: fg %..
+        cmdFg(argv[1], argc);
         prevExitCode = 0;
     }
-    else if (strcmp(command, "bg") == 0){
-        cmdBg(buffer);
+    else if (strcmp(command, "bg") == 0){ //Cmd: bg %..
+        cmdBg(argv[1], argc);
         prevExitCode = 0;
     }
     else{
-        runExternal(buffer);
+        runExternal(buffer, argv, argc, in, out); // Run command externally
     }
+    
+    fflush(stdout); // flush output buffer
+    fflush(stderr); // flush error
 
-    free(command);
-
+    dup2(saved_stdout, 1); // Get back output direction
+    dup2(saved_stderr, 2); // Get back error direction
+    if (fd >= 0) {
+        close(fd); 
+    }
+    close(saved_stdout);
+    close(saved_stderr);
 }

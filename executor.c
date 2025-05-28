@@ -1,52 +1,55 @@
 #include "executor.h"
+/**
+ * @name runExternal
+ * @brief Run external command with child process while handling I/O redirection
+ * @param buffer original user input
+ * @param argv arguments from bufferToArg function
+ * @param argc number of arguments
+ * @param in File name for input redirection
+ * @param out File name for output rediection
+ * @returns void
+ */
+void runExternal(char* buffer, char* argv[], int argc, char* in, char* out) {
+    int ppid = getpid(); // Parent group process id
 
-void runExternal(char* buffer) {
-    char* argv[64];
-    char copyBuffer[MAX_CMD_BUFFER];
-    char* in = NULL;
-    char* out = NULL;
-    int ppid = getpid();
-
-    bool bg = checkAmpersand(&buffer);
-    strncpy(copyBuffer, buffer, MAX_CMD_BUFFER);
-    bufferToArg(copyBuffer, argv, &in, &out);
-
+    bool bg = checkAmpersand(argv, argc); // Check if the command should be run in bg or not
+    
     pid_t pid;
-    if ((pid=fork()) < 0){ //Error
+    if ((pid=fork()) < 0){ // Error when fork
         perror ("Fork failed");
         prevExitCode = 1;
         return;
     }
-    if (!pid) { //Child
+    if (!pid) { // Child process section
         
         setpgid(0, 0);  // Child creates a new process group
         
         if (!bg) {
-            tcsetpgrp(0, getpid()); // Give terminal to child if foreground
+            tcsetpgrp(0, getpid()); // If not bg, then give terminal to child
         }
 
-        signal(SIGINT, SIG_DFL);
+        signal(SIGINT, SIG_DFL); // Return default signal to child process
         signal(SIGTSTP, SIG_DFL);
 
-        if (in != NULL){
+        if (in != NULL){ // Handling input redirection
             int fd = open(in, O_RDONLY);
             if (fd < 0){
                 perror("No Such File");
+                exit(1);
             }
-            dup2(fd, 0);
+            dup2(fd, 0); // Getting input from the file
         }
-        if (out != NULL){
+        if (out != NULL){ // Handling output redirection
             int fd = open(out, O_TRUNC | O_CREAT | O_WRONLY, 0666);
-            dup2(fd, 1);
+            dup2(fd, 1); // Change output direction to this file
         }
-        execvp(argv[0], argv);
+        execvp(argv[0], argv); // Execute the command
         perror("");
         exit(1);
+        
     }
-    else { //Parent
-        setpgid(pid, pid);
-
-        if (bg){
+    else { // Parent process section
+        if (bg){ // If it is a bg process, then create a job 
             Job job = createJob(buffer, pid);
 
             printf("[%d] %d\n", job.id, job.pid);
@@ -55,21 +58,21 @@ void runExternal(char* buffer) {
             prevExitCode = 0;
             return;
         }
-        tcsetpgrp(0, pid);
+        tcsetpgrp(0, pid); // Give terminal to child process
 
         int stat;
-        waitpid(pid, &stat, WUNTRACED);
-        tcsetpgrp(0, ppid);
+        waitpid(pid, &stat, WUNTRACED); // Wait until the child process is done
+        tcsetpgrp(0, ppid); // Give terminal back to parent process
 
-        if (WIFSTOPPED(stat)) { //https://linux.die.net/man/3/waitpid
+        if (WIFSTOPPED(stat)) { // If sigtstp is signaled, then create another job
             Job job = createJob(buffer, pid);
             job.running = false;
 
             printf("\n[%d] Stopped\t%s\n", job.id, argv[0]);
         }
-        if (WIFEXITED(stat)) {
+        if (WIFEXITED(stat)) { // Exit in good condition
             prevExitCode = WEXITSTATUS(stat);
-        } else {
+        } else { // Not good condition
             prevExitCode = 1;
         }
     }
