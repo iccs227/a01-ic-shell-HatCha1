@@ -15,12 +15,12 @@
 #define MAX_CMD_BUFFER 255
 
 char* firstWord(char* buffer);
-int bufferToArg(char* buffer, char** argv);
+int bufferToArg(char* buffer, char** argv, char** input, char** output);
 void allCommands(char* buffer);
 void cmdEcho(char* argv[]);
 void cmdBang();
 void cmdExit(char* argv[], int argc);
-void runExternal(char* buffer, char* argv[], int argc);
+void runExternal(char* buffer, char* argv[], int argc, char* in, char* out);
 
 char prevBuffer[255];
 bool script = false;
@@ -45,10 +45,17 @@ int main(int argc, char* argv[]) {
 
             buffer[strcspn(buffer, "\n")] = '\0';
             
-            if (buffer[0] != '!' && buffer[1] != '!'){
-                strncpy(prevBuffer, buffer, MAX_CMD_BUFFER);
-            }
+            if (buffer[0] != '!' && buffer[1] != '!') { // If first 2 letters are !!, then copy buffer to prevBuffer
 
+                char* temp = strchr(buffer, '>');
+                char copyBuffer[MAX_CMD_BUFFER];
+                strncpy(copyBuffer, buffer, MAX_CMD_BUFFER);
+    
+                if (temp != NULL){ // If > is shown in the buffer, then end the copyBuffer right before ">" and copy it to prevBuffer.
+                    copyBuffer[strlen(buffer) - strlen(temp)] = '\0';
+                }
+                strncpy(prevBuffer, copyBuffer, MAX_CMD_BUFFER);
+            }
             allCommands(buffer);
         }
 
@@ -63,8 +70,16 @@ int main(int argc, char* argv[]) {
 
         buffer[strcspn(buffer, "\n")] = '\0';
         
-        if (buffer[0] != '!' && buffer[1] != '!'){
-            strncpy(prevBuffer, buffer, MAX_CMD_BUFFER);
+        if (buffer[0] != '!' && buffer[1] != '!') { // If first 2 letters are !!, then copy buffer to prevBuffer
+
+            char* temp = strchr(buffer, '>');
+            char copyBuffer[MAX_CMD_BUFFER];
+            strncpy(copyBuffer, buffer, MAX_CMD_BUFFER);
+
+            if (temp != NULL){ // If > is shown in the buffer, then end the copyBuffer right before ">" and copy it to prevBuffer.
+                copyBuffer[strlen(buffer) - strlen(temp)] = '\0';
+            }
+            strncpy(prevBuffer, copyBuffer, MAX_CMD_BUFFER);
         }
 
         allCommands(buffer);
@@ -76,14 +91,29 @@ int main(int argc, char* argv[]) {
  * @brief Convert bufffer to arguments
  * @param buffer that you want to convert
  * @param argv that you want to convert to
+ * @param input Check if < is shown in the buffer
+ * @param output Check if > is shown in the buffer
  * @returns int, argc
  */
-int bufferToArg(char* buffer, char** argv){
+int bufferToArg(char* buffer, char** argv, char** input, char** output){
     int argc = 0;
     char* token = strtok(buffer, " ");
 
     while (token != NULL && argc < 63) { // Using strtok to get each arguments untill the end of buffer
-        argv[argc++] = token;
+        if (strcmp(token, "<") == 0){  // If < is found, argv is everything before < and input is after <
+            token = strtok(NULL, " ");
+            *input = token;
+        }
+        else if (strcmp(token, ">") == 0){ // If < is found, argv is everything before > and output is after >
+            token = strtok(NULL, " ");
+            *output = token;
+            if (token == NULL) {
+                printf("No file specified for output redirection");
+            }
+        }
+        else {
+            argv[argc++] = token;
+        }
         token = strtok(NULL, " ");
         
     }
@@ -101,11 +131,23 @@ void allCommands(char* buffer){
 
     char* argv[64];
     char copyBuffer[MAX_CMD_BUFFER];
+    char* in = NULL;
+    char* out = NULL;
 
+    int saved_stdout = dup(1); // Save output direction
+    int saved_stderr = dup(2); // Save error direction
+    int fd = -1;
+    
     strncpy(copyBuffer, buffer, MAX_CMD_BUFFER);
-    int argc = bufferToArg(copyBuffer, argv);
+    int argc = bufferToArg(copyBuffer, argv, &in, &out);
 
     char* command = argv[0];
+
+    if (out != NULL){ // If > is in the buffer, redirect output/error to this file
+        fd = open(out, O_TRUNC | O_CREAT | O_WRONLY, 0666);
+        dup2(fd, 1);
+        dup2(fd, 2);
+    }
 
     if(command == NULL){ //If type nothing
         return;
@@ -131,8 +173,19 @@ void allCommands(char* buffer){
         return;
     }
     else{
-        runExternal(buffer, argv, argc); // Run command externally
+        runExternal(buffer, argv, argc, in, out); // Run command externally
     }
+
+    fflush(stdout); // flush output buffer
+    fflush(stderr); // flush error
+
+    dup2(saved_stdout, 1); // Get back output direction
+    dup2(saved_stderr, 2); // Get back error direction
+    if (fd >= 0) {
+        close(fd); 
+    }
+    close(saved_stdout);
+    close(saved_stderr);
 }
 
 /**
@@ -190,7 +243,7 @@ void cmdExit(char* argv[], int argc){
  * @param argc number of arguments
  * @returns void
  */
-void runExternal(char* buffer, char* argv[], int argc) {
+void runExternal(char* buffer, char* argv[], int argc, char* in, char* out) {
     
     pid_t pid;
     if ((pid=fork()) < 0){ // Error when fork
@@ -202,6 +255,19 @@ void runExternal(char* buffer, char* argv[], int argc) {
         signal(SIGINT, SIG_DFL); // Return default signal to child process
         signal(SIGTSTP, SIG_DFL);
 
+        if (in != NULL){ // Handling input redirection
+            int fd = open(in, O_RDONLY);
+            if (fd < 0){
+                perror("No Such File");
+                exit(1);
+            }
+            dup2(fd, 0); // Getting input from the file
+        }
+        if (out != NULL){ // Handling output redirection
+            int fd = open(out, O_TRUNC | O_CREAT | O_WRONLY, 0666);
+            dup2(fd, 1); // Change output direction to this file
+        }
+
         execvp(argv[0], argv); // Execute the command
         perror("");
         exit(1);
@@ -212,7 +278,7 @@ void runExternal(char* buffer, char* argv[], int argc) {
         waitpid(pid, &stat, WUNTRACED); // Wait until the child process is done
         
         if (WIFSTOPPED(stat)) { // If sigtstp is signaled
-            printf("\n[%d] Stopped\t%s\n", pid, argv[0]);
+            printf("\n[%d] Stopped\t%s\n", pid, buffer);
         }
         if (WIFEXITED(stat)) { // Exit in good condition
             prevExitCode = WEXITSTATUS(stat);
