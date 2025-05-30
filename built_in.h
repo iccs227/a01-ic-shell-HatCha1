@@ -8,5 +8,6 @@
 void cmdEcho(char* argv[]);
 void cmdBang(char* buffer, char* argv[]);
 void cmdExit(char* argv[], int argc);
+void runPiped(char* argv[], int argc);
 
 #endif
