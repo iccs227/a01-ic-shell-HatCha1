@@ -3,10 +3,10 @@
  * StudentID: 6680060
  */
 
-#include "stdio.h"
-#include "string.h"
-#include "stdlib.h"
-
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdbool.h>
 #define MAX_CMD_BUFFER 255
 
 char* firstWord(char* buffer);
@@ -17,10 +17,35 @@ void cmdBang();
 void cmdExit(char* argv[], int argc);
 
 char prevBuffer[255];
+bool script = false;
 
-int main() {
+int main(int argc, char* argv[]) {
     char buffer[MAX_CMD_BUFFER];
     
+    if (argc > 1){
+        script = true;
+        FILE* file = fopen(argv[1], "r");
+
+        if (file == NULL){
+            printf("No such file %s\n", argv[1]);
+            return 0;
+        }
+
+        while (fgets(buffer, sizeof(buffer), file)) { // Read file line by line and run the command until the end
+
+            buffer[strcspn(buffer, "\n")] = '\0';
+            
+            if (buffer[0] != '!' && buffer[1] != '!'){
+                strncpy(prevBuffer, buffer, MAX_CMD_BUFFER);
+            }
+            
+            allCommands(buffer);
+        }
+
+        fclose(file);
+        return 0;
+    }
+
     printf("Starting IC shell\n");
     while (1) {
         printf("icsh $ ");
@@ -83,11 +108,12 @@ void allCommands(char* buffer){
     else if(strcmp(command, "!!") == 0){ //Cmd: !!
         cmdBang();
     }
-
     else if(strcmp(command, "exit") == 0){ //Cmd: exit ..
         cmdExit(argv, argc);
     }
-
+    else if(strcmp(command, "##") == 0 && script){ // In script mode, if ## is shown, we do not want to include them as a command line
+        return;
+    }
     else{
         printf("bad command\n"); //Cmd: bad command
     }
