@@ -32,10 +32,6 @@ void allCommands(char* buffer){
     if(command == NULL){ //If type nothing
         return;
     }
-    if (strchr(buffer, '|') != NULL){ //Cmd: pipe
-        runPiped(argv, argc);
-        prevExitCode = 0;
-    }
     else if (strcmp(buffer, "echo $?") == 0){ // For getting exit code
         printf("Exit Code: %d\n", prevExitCode);
     }
