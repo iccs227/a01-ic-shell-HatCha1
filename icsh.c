@@ -10,6 +10,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <signal.h>
+
 #define MAX_CMD_BUFFER 255
 
 char* firstWord(char* buffer);
@@ -22,10 +24,14 @@ void runExternal(char* buffer, char* argv[], int argc);
 
 char prevBuffer[255];
 bool script = false;
+int prevExitCode = 0;
 
 int main(int argc, char* argv[]) {
     char buffer[MAX_CMD_BUFFER];
     
+    signal(SIGTSTP, SIG_IGN);
+    signal(SIGINT, SIG_IGN);
+
     if (argc > 1){
         script = true;
         FILE* file = fopen(argv[1], "r");
@@ -104,18 +110,24 @@ void allCommands(char* buffer){
     if(command == NULL){ //If type nothing
         return;
     }
-
-    if(strcmp(command, "echo") == 0){ //Cmd: echo ...
+    if (strcmp(buffer, "echo $?") == 0){ // For getting exit code
+        printf("Exit Code: %d\n", prevExitCode);
+    }
+    else if(strcmp(command, "echo") == 0){ //Cmd: echo ...
         cmdEcho(argv);
+        prevExitCode = 0;
     }
 
     else if(strcmp(command, "!!") == 0){ //Cmd: !!
         cmdBang();
+        prevExitCode = 0;
     }
     else if(strcmp(command, "exit") == 0){ //Cmd: exit ..
         cmdExit(argv, argc);
+        prevExitCode = 0;
     }
     else if(strcmp(command, "##") == 0 && script){ // In script mode, if ## is shown, we do not want to include them as a command line
+        prevExitCode = 0;
         return;
     }
     else{
@@ -182,11 +194,14 @@ void runExternal(char* buffer, char* argv[], int argc) {
     
     pid_t pid;
     if ((pid=fork()) < 0){ // Error when fork
+        prevExitCode = 1;
         perror ("Fork failed");
         return;
     }
     if (!pid) { // Child process section
-    
+        signal(SIGINT, SIG_DFL); // Return default signal to child process
+        signal(SIGTSTP, SIG_DFL);
+
         execvp(argv[0], argv); // Execute the command
         perror("");
         exit(1);
@@ -195,5 +210,14 @@ void runExternal(char* buffer, char* argv[], int argc) {
     else { // Parent process section
         int stat;
         waitpid(pid, &stat, WUNTRACED); // Wait until the child process is done
+        
+        if (WIFSTOPPED(stat)) { // If sigtstp is signaled
+            printf("\n[%d] Stopped\t%s\n", pid, argv[0]);
+        }
+        if (WIFEXITED(stat)) { // Exit in good condition
+            prevExitCode = WEXITSTATUS(stat);
+        } else { // Not good condition
+            prevExitCode = 1;
+        }
     }
 }
