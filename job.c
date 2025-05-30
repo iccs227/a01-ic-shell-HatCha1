@@ -113,14 +113,15 @@ void cmdBg(char* buffer, int argc) {
  * @brief Create a job and put in the necessary details
  * @param command First argument
  * @param pid Process id that we are building for
+ * @param isRunning Tell the function whether the process is stopped or still running
  * @returns a new Job in jobs list
  */
-Job createJob(char* command, pid_t pid){
+Job createJob(char* command, pid_t pid, bool isRunning){
     Job job;
     job.id = nextJobId++;
     job.pid = pid;
     strncpy(job.command, command, MAX_CMD_BUFFER);
-    job.running = true;
+    job.running = isRunning;
     job.done = false;
     jobs[jobCount++] = job;
     return job;

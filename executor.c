@@ -50,7 +50,7 @@ void runExternal(char* buffer, char* argv[], int argc, char* in, char* out) {
     }
     else { // Parent process section
         if (bg){ // If it is a bg process, then create a job 
-            Job job = createJob(buffer, pid);
+            Job job = createJob(buffer, pid, true);
 
             printf("[%d] %d\n", job.id, job.pid);
 
@@ -65,8 +65,7 @@ void runExternal(char* buffer, char* argv[], int argc, char* in, char* out) {
         tcsetpgrp(0, ppid); // Give terminal back to parent process
 
         if (WIFSTOPPED(stat)) { // If sigtstp is signaled, then create another job
-            Job job = createJob(buffer, pid);
-            job.running = false;
+            Job job = createJob(buffer, pid, false);
 
             printf("\n[%d] Stopped\t%s\n", job.id, buffer);
         }

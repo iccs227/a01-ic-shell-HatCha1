@@ -19,7 +19,7 @@ extern pid_t shell_pgid;
 void cmdJobs();
 void cmdFg(char* buffer, int argc);
 void cmdBg(char* buffer, int argc);
-Job createJob(char* command, pid_t pid);
+Job createJob(char* command, pid_t pid, bool isRunning);
 void removeJob(int index);
 
 #endif
