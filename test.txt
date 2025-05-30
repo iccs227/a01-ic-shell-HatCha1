@@ -1,2 +1,5 @@
-dwasd
-No such file or directory
+
+[2] Stopped	ping localhost > test.txt
+ytes from localhost6.localdomain6 (::1): icmp_seq=1 ttl=64 time=0.025 ms
+64 bytes from localhost6.localdomain6 (::1): icmp_seq=2 ttl=64 time=0.029 ms
+64 bytes from localhost6.localdomain6 (::1): icmp_seq=3 ttl=64 time=0.105 ms
