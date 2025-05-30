@@ -7,6 +7,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/wait.h>
 #define MAX_CMD_BUFFER 255
 
 char* firstWord(char* buffer);
@@ -15,6 +18,7 @@ void allCommands(char* buffer);
 void cmdEcho(char* argv[]);
 void cmdBang();
 void cmdExit(char* argv[], int argc);
+void runExternal(char* buffer, char* argv[], int argc);
 
 char prevBuffer[255];
 bool script = false;
@@ -38,7 +42,7 @@ int main(int argc, char* argv[]) {
             if (buffer[0] != '!' && buffer[1] != '!'){
                 strncpy(prevBuffer, buffer, MAX_CMD_BUFFER);
             }
-            
+
             allCommands(buffer);
         }
 
@@ -115,7 +119,7 @@ void allCommands(char* buffer){
         return;
     }
     else{
-        printf("bad command\n"); //Cmd: bad command
+        runExternal(buffer, argv, argc); // Run command externally
     }
 }
 
@@ -164,4 +168,32 @@ void cmdExit(char* argv[], int argc){
     code = code & 0xFF;
     printf("bye\n");
     exit(code);
+}
+
+/**
+ * @name runExternal
+ * @brief Run external command with child process while handling I/O redirection
+ * @param buffer original user input
+ * @param argv arguments from bufferToArg function
+ * @param argc number of arguments
+ * @returns void
+ */
+void runExternal(char* buffer, char* argv[], int argc) {
+    
+    pid_t pid;
+    if ((pid=fork()) < 0){ // Error when fork
+        perror ("Fork failed");
+        return;
+    }
+    if (!pid) { // Child process section
+    
+        execvp(argv[0], argv); // Execute the command
+        perror("");
+        exit(1);
+        
+    }
+    else { // Parent process section
+        int stat;
+        waitpid(pid, &stat, WUNTRACED); // Wait until the child process is done
+    }
 }
